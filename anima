@@ -1,0 +1,2643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Matrix Rain Generator HD</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #000;
+    color: #00ff41;
+    font-family: Arial, sans-serif;
+    overflow-x: hidden;
+}
+
+.container {
+    width: 100%;
+    max-width: 1100px;
+    margin: auto;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    color: #00ff41;
+    font-size: 32px;
+    margin-bottom: 20px;
+
+    text-shadow:
+        0 0 5px #00ff41,
+        0 0 15px #00ff41;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+input {
+    padding: 14px;
+
+    background: #050505;
+
+    border: 1px solid #00ff41;
+
+    color: #00ff41;
+
+    font-size: 18px;
+
+    text-align: center;
+
+    outline: none;
+
+    box-shadow:
+        0 0 10px rgba(0,255,65,0.3);
+}
+
+#textInput {
+    width: 300px;
+    max-width: 90%;
+}
+
+#speedInput {
+    width: 160px;
+    max-width: 90%;
+}
+
+button,
+#download {
+    padding: 14px 20px;
+
+    background: #001a05;
+
+    border: 1px solid #00ff41;
+
+    color: #00ff41;
+
+    font-weight: bold;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+
+    text-decoration: none;
+}
+
+button:hover,
+#download:hover {
+    background: #00ff41;
+
+    color: #000;
+
+    box-shadow:
+        0 0 10px #00ff41,
+        0 0 25px #00ff41;
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#download {
+    display: none;
+}
+
+#canvas {
+    display: block;
+
+    width: 100%;
+    max-width: 950px;
+
+    height: auto;
+
+    margin: auto;
+
+    background: #000;
+
+    border: 1px solid #003b10;
+
+    box-shadow:
+        0 0 20px rgba(0,255,65,0.15),
+        inset 0 0 30px rgba(0,255,65,0.05);
+}
+
+.status {
+    text-align: center;
+
+    margin-top: 12px;
+
+    min-height: 22px;
+
+    font-size: 14px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>MATRIX RAIN HD</h1>
+
+    <div class="controls">
+
+        <input
+            id="textInput"
+            type="text"
+            value="MARCROFT"
+            maxlength="20"
+            placeholder="Escribe tu nombre"
+        >
+
+        <input
+            id="speedInput"
+            type="number"
+            value="680"
+            min="50"
+            max="3000"
+            step="50"
+            placeholder="ms / letra"
+            title="Milisegundos por cada letra"
+        >
+
+        <button id="restartBtn">
+            REINICIAR
+        </button>
+
+        <button id="gifBtn">
+            GENERAR GIF HD
+        </button>
+
+        <a id="download">
+            DESCARGAR GIF
+        </a>
+
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div
+        class="status"
+        id="status"
+    >
+        Listo
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   ELEMENTOS
+========================================================= */
+
+const canvas =
+    document.getElementById("canvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+const textInput =
+    document.getElementById("textInput");
+
+const speedInput =
+    document.getElementById("speedInput");
+
+const restartBtn =
+    document.getElementById("restartBtn");
+
+const gifBtn =
+    document.getElementById("gifBtn");
+
+const downloadBtn =
+    document.getElementById("download");
+
+const status =
+    document.getElementById("status");
+
+
+/* =========================================================
+   CANVAS PRINCIPAL
+========================================================= */
+
+const WIDTH = 950;
+const HEIGHT = 500;
+
+canvas.width = WIDTH;
+canvas.height = HEIGHT;
+
+
+/* =========================================================
+   CONFIGURACIÓN MATRIX
+========================================================= */
+
+const RAIN_FONT_SIZE = 22;
+
+
+/*
+   Velocidad real de la lluvia.
+
+   Píxeles por segundo.
+*/
+
+const RAIN_SPEED_MIN = 480;
+const RAIN_SPEED_MAX = 720;
+
+
+/*
+   Longitud de las cadenas.
+*/
+
+const MIN_TRAIL = 8;
+const MAX_TRAIL = 24;
+
+
+/*
+   Caracteres Matrix.
+*/
+
+const CHARS =
+    "アァカサタナハマヤャラワガザダバパ" +
+    "0123456789" +
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+    "!@#$%^&*()_+-=[]{}<>";
+
+
+/* =========================================================
+   FORMACIÓN DEL NOMBRE
+========================================================= */
+
+let LETTER_INTERVAL = 680;
+
+
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+let drops = [];
+
+let currentText = "MARCROFT";
+
+let formedLetters = 0;
+
+let letterTimer = 0;
+
+let lastTime = 0;
+
+let animationRunning = false;
+
+
+/* =========================================================
+   CARACTER ALEATORIO
+========================================================= */
+
+function randomChar() {
+
+    return CHARS[
+        Math.floor(
+            Math.random() *
+            CHARS.length
+        )
+    ];
+
+}
+
+
+/* =========================================================
+   CREAR DROP
+========================================================= */
+
+function createDrop(
+    x,
+    initialY
+) {
+
+    const length =
+        MIN_TRAIL +
+        Math.floor(
+            Math.random() *
+            (
+                MAX_TRAIL -
+                MIN_TRAIL +
+                1
+            )
+        );
+
+
+    const chars = [];
+
+
+    for (
+        let i = 0;
+        i < length;
+        i++
+    ) {
+
+        chars.push(
+            randomChar()
+        );
+
+    }
+
+
+    return {
+
+        x: x,
+
+        y: initialY,
+
+        speed:
+            RAIN_SPEED_MIN +
+            Math.random() *
+            (
+                RAIN_SPEED_MAX -
+                RAIN_SPEED_MIN
+            ),
+
+        chars: chars,
+
+        length: length
+
+    };
+
+}
+
+
+/* =========================================================
+   CREAR LLUVIA
+========================================================= */
+
+function createRain() {
+
+    drops = [];
+
+
+    const columns =
+        Math.ceil(
+            WIDTH /
+            RAIN_FONT_SIZE
+        ) + 2;
+
+
+    for (
+        let i = 0;
+        i < columns;
+        i++
+    ) {
+
+        drops.push(
+            createDrop(
+                i *
+                RAIN_FONT_SIZE,
+
+                Math.random() *
+                -HEIGHT
+            )
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   ACTUALIZAR LLUVIA
+========================================================= */
+
+function updateRain(
+    deltaSeconds,
+    width,
+    height,
+    fontSize
+) {
+
+    for (
+        let i = 0;
+        i < drops.length;
+        i++
+    ) {
+
+        const drop =
+            drops[i];
+
+
+        /*
+           Velocidad basada en tiempo.
+        */
+
+        drop.y +=
+            drop.speed *
+            deltaSeconds;
+
+
+        /*
+           Cambios de caracteres.
+        */
+
+        for (
+            let j = 0;
+            j < drop.chars.length;
+            j++
+        ) {
+
+            if (
+                Math.random() < 0.025
+            ) {
+
+                drop.chars[j] =
+                    randomChar();
+
+            }
+
+        }
+
+
+        /*
+           Reiniciar columna.
+        */
+
+        if (
+            drop.y -
+            drop.length *
+            fontSize >
+            height
+        ) {
+
+            drop.y =
+                Math.random() *
+                -height;
+
+
+            drop.speed =
+                RAIN_SPEED_MIN +
+                Math.random() *
+                (
+                    RAIN_SPEED_MAX -
+                    RAIN_SPEED_MIN
+                );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DIBUJAR LLUVIA
+========================================================= */
+
+function drawRain(
+    drawingContext,
+    width,
+    height,
+    fontSize
+) {
+
+    drawingContext.font =
+        fontSize +
+        "px monospace";
+
+
+    drawingContext.textAlign =
+        "left";
+
+
+    for (
+        let i = 0;
+        i < drops.length;
+        i++
+    ) {
+
+        const drop =
+            drops[i];
+
+
+        for (
+            let j = 0;
+            j < drop.chars.length;
+            j++
+        ) {
+
+            const y =
+                drop.y -
+                j *
+                fontSize;
+
+
+            if (
+                y <
+                    -fontSize ||
+                y >
+                    height +
+                    fontSize
+            ) {
+
+                continue;
+
+            }
+
+
+            /*
+               Cabeza blanca.
+            */
+
+            if (j === 0) {
+
+                drawingContext.fillStyle =
+                    "#ffffff";
+
+            }
+
+            else {
+
+                const alpha =
+                    Math.max(
+                        0.15,
+
+                        1 -
+                        (
+                            j /
+                            drop.chars.length
+                        )
+                    );
+
+
+                drawingContext.fillStyle =
+                    "rgba(0,255,65," +
+                    alpha +
+                    ")";
+
+            }
+
+
+            drawingContext.fillText(
+                drop.chars[j],
+                drop.x,
+                y
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DIBUJAR PALABRA
+========================================================= */
+
+function drawWord(
+    drawingContext,
+    width,
+    height,
+    fontSize,
+    formed
+) {
+
+    if (!currentText) {
+        return;
+    }
+
+
+    const text =
+        currentText.toUpperCase();
+
+
+    /*
+       EXACTAMENTE EL MISMO
+       TAMAÑO DE LA LLUVIA.
+    */
+
+    drawingContext.font =
+        "bold " +
+        fontSize +
+        "px monospace";
+
+
+    drawingContext.textAlign =
+        "center";
+
+
+    drawingContext.textBaseline =
+        "middle";
+
+
+    const centerX =
+        width / 2;
+
+    const centerY =
+        height / 2;
+
+
+    /*
+       Mantener la palabra
+       centrada.
+    */
+
+    const totalWidth =
+        drawingContext.measureText(
+            text
+        ).width;
+
+
+    let x =
+        centerX -
+        totalWidth / 2;
+
+
+    for (
+        let i = 0;
+        i < text.length;
+        i++
+    ) {
+
+        const letter =
+            text[i];
+
+
+        const letterWidth =
+            drawingContext.measureText(
+                letter
+            ).width;
+
+
+        if (
+            i < formed
+        ) {
+
+            drawingContext.shadowColor =
+                "#00ff41";
+
+            drawingContext.shadowBlur =
+                8;
+
+
+            drawingContext.fillStyle =
+                "#00ff41";
+
+
+            drawingContext.fillText(
+                letter,
+
+                x +
+                letterWidth / 2,
+
+                centerY
+            );
+
+
+            drawingContext.shadowBlur =
+                0;
+
+        }
+
+
+        x +=
+            letterWidth;
+
+    }
+
+}
+
+
+/* =========================================================
+   REINICIAR
+========================================================= */
+
+function restart() {
+
+    if (speedInput && speedInput.value) {
+        LETTER_INTERVAL = parseInt(speedInput.value, 10) || 680;
+    }
+
+    currentText =
+        textInput.value
+            .trim()
+            .toUpperCase();
+
+
+    if (!currentText) {
+
+        currentText =
+            "MATRIX";
+
+        textInput.value =
+            currentText;
+
+    }
+
+
+    formedLetters =
+        0;
+
+
+    letterTimer =
+        0;
+
+
+    lastTime =
+        0;
+
+
+    createRain();
+
+
+    animationRunning =
+        true;
+
+
+    status.textContent =
+        "Formando: " +
+        currentText;
+
+}
+
+
+/* =========================================================
+   ANIMACIÓN PRINCIPAL
+========================================================= */
+
+function animate(time) {
+
+    if (!animationRunning) {
+
+        requestAnimationFrame(
+            animate
+        );
+
+        return;
+
+    }
+
+
+    if (!lastTime) {
+
+        lastTime =
+            time;
+
+    }
+
+
+    let delta =
+        (
+            time -
+            lastTime
+        ) /
+        1000;
+
+
+    lastTime =
+        time;
+
+
+    /*
+       Evitar saltos.
+    */
+
+    delta =
+        Math.min(
+            delta,
+            0.05
+        );
+
+
+    /*
+       Fondo.
+    */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.16)";
+
+
+    ctx.fillRect(
+        0,
+        0,
+        WIDTH,
+        HEIGHT
+    );
+
+
+    /*
+       Actualizar lluvia.
+    */
+
+    updateRain(
+        delta,
+        WIDTH,
+        HEIGHT,
+        RAIN_FONT_SIZE
+    );
+
+
+    /*
+       Dibujar lluvia.
+    */
+
+    drawRain(
+        ctx,
+        WIDTH,
+        HEIGHT,
+        RAIN_FONT_SIZE
+    );
+
+
+    /*
+       Formación.
+    */
+
+    letterTimer +=
+        delta *
+        1000;
+
+
+    if (
+        letterTimer >=
+        LETTER_INTERVAL
+    ) {
+
+        letterTimer -=
+            LETTER_INTERVAL;
+
+
+        if (
+            formedLetters <
+            currentText.length
+        ) {
+
+            formedLetters++;
+
+        }
+
+    }
+
+
+    /*
+       Dibujar nombre.
+    */
+
+    drawWord(
+        ctx,
+        WIDTH,
+        HEIGHT,
+        RAIN_FONT_SIZE,
+        formedLetters
+    );
+
+
+    /*
+       Estado.
+    */
+
+    if (
+        formedLetters >=
+        currentText.length
+    ) {
+
+        status.textContent =
+            currentText +
+            " completado";
+
+    }
+
+
+    requestAnimationFrame(
+        animate
+    );
+
+}
+
+
+/* =========================================================
+   EVENTOS
+========================================================= */
+
+restartBtn.addEventListener(
+    "click",
+    () => {
+
+        restart();
+
+    }
+);
+
+
+textInput.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            restart();
+
+        }
+
+    }
+);
+
+
+speedInput.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            restart();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   CONFIGURACIÓN GIF HD
+========================================================= */
+
+const GIF_WIDTH = 950;
+const GIF_HEIGHT = 500;
+
+const GIF_FPS = 10;
+
+const GIF_SECONDS = 7;
+
+const GIF_FRAMES =
+    GIF_FPS *
+    GIF_SECONDS;
+
+
+/*
+   Como el GIF tiene exactamente
+   la misma resolución del canvas,
+   usamos la misma velocidad.
+
+   NO hacemos una reducción de escala.
+*/
+
+const GIF_RAIN_FONT_SIZE =
+    RAIN_FONT_SIZE;
+
+
+/* =========================================================
+   CREAR ESCENA GIF
+========================================================= */
+
+function createGIFScene(
+    text
+) {
+
+    const scene =
+        document.createElement(
+            "canvas"
+        );
+
+
+    scene.width =
+        GIF_WIDTH;
+
+
+    scene.height =
+        GIF_HEIGHT;
+
+
+    const g =
+        scene.getContext(
+            "2d"
+        );
+
+
+    const fontSize =
+        GIF_RAIN_FONT_SIZE;
+
+
+    const columns =
+        Math.ceil(
+            GIF_WIDTH /
+            fontSize
+        ) + 2;
+
+
+    const gifDrops = [];
+
+
+    for (
+        let i = 0;
+        i < columns;
+        i++
+    ) {
+
+        const length =
+            MIN_TRAIL +
+            Math.floor(
+                Math.random() *
+                (
+                    MAX_TRAIL -
+                    MIN_TRAIL +
+                    1
+                )
+            );
+
+
+        const chars = [];
+
+
+        for (
+            let j = 0;
+            j < length;
+            j++
+        ) {
+
+            chars.push(
+                randomChar()
+            );
+
+        }
+
+
+        gifDrops.push({
+
+            x:
+                i *
+                fontSize,
+
+            y:
+                Math.random() *
+                -GIF_HEIGHT,
+
+            speed:
+                RAIN_SPEED_MIN +
+                Math.random() *
+                (
+                    RAIN_SPEED_MAX -
+                    RAIN_SPEED_MIN
+                ),
+
+            chars:
+                chars,
+
+            length:
+                length
+
+        });
+
+    }
+
+
+    return {
+
+        canvas:
+            scene,
+
+        ctx:
+            g,
+
+        rain:
+            gifDrops,
+
+        fontSize:
+            fontSize,
+
+        text:
+            text
+
+    };
+
+}
+
+
+/* =========================================================
+   ACTUALIZAR LLUVIA GIF
+========================================================= */
+
+function updateGIFRain(
+    scene,
+    deltaSeconds
+) {
+
+    const rain =
+        scene.rain;
+
+
+    const fontSize =
+        scene.fontSize;
+
+
+    for (
+        let i = 0;
+        i < rain.length;
+        i++
+    ) {
+
+        const drop =
+            rain[i];
+
+
+        /*
+           MISMA VELOCIDAD REAL
+           QUE LA ANIMACIÓN PRINCIPAL.
+        */
+
+        drop.y +=
+            drop.speed *
+            deltaSeconds;
+
+
+        /*
+           Cambios de caracteres.
+        */
+
+        for (
+            let j = 0;
+            j < drop.chars.length;
+            j++
+        ) {
+
+            if (
+                Math.random() < 0.025
+            ) {
+
+                drop.chars[j] =
+                    randomChar();
+
+            }
+
+        }
+
+
+        /*
+           Reiniciar.
+        */
+
+        if (
+            drop.y -
+            drop.length *
+            fontSize >
+            GIF_HEIGHT
+        ) {
+
+            drop.y =
+                Math.random() *
+                -GIF_HEIGHT;
+
+
+            drop.speed =
+                RAIN_SPEED_MIN +
+                Math.random() *
+                (
+                    RAIN_SPEED_MAX -
+                    RAIN_SPEED_MIN
+                );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DIBUJAR LLUVIA GIF
+========================================================= */
+
+function drawGIFRain(
+    scene
+) {
+
+    const g =
+        scene.ctx;
+
+
+    const fontSize =
+        scene.fontSize;
+
+
+    g.font =
+        fontSize +
+        "px monospace";
+
+
+    g.textAlign =
+        "left";
+
+
+    for (
+        let i = 0;
+        i < scene.rain.length;
+        i++
+    ) {
+
+        const drop =
+            scene.rain[i];
+
+
+        for (
+            let j = 0;
+            j < drop.chars.length;
+            j++
+        ) {
+
+            const y =
+                drop.y -
+                j *
+                fontSize;
+
+
+            if (
+                y <
+                    -fontSize ||
+                y >
+                    GIF_HEIGHT +
+                    fontSize
+            ) {
+
+                continue;
+
+            }
+
+
+            /*
+               Cabeza.
+            */
+
+            if (j === 0) {
+
+                g.fillStyle =
+                    "#ffffff";
+
+            }
+
+            else {
+
+                const alpha =
+                    Math.max(
+                        0.15,
+
+                        1 -
+                        (
+                            j /
+                            drop.chars.length
+                        )
+                    );
+
+
+                /*
+                   Aproximación
+                   de intensidad para GIF.
+                */
+
+                if (
+                    alpha > 0.85
+                ) {
+
+                    g.fillStyle =
+                        "#00ff41";
+
+                }
+
+                else if (
+                    alpha > 0.70
+                ) {
+
+                    g.fillStyle =
+                        "#00e639";
+
+                }
+
+                else if (
+                    alpha > 0.55
+                ) {
+
+                    g.fillStyle =
+                        "#00cc32";
+
+                }
+
+                else if (
+                    alpha > 0.40
+                ) {
+
+                    g.fillStyle =
+                        "#00aa2a";
+
+                }
+
+                else if (
+                    alpha > 0.25
+                ) {
+
+                    g.fillStyle =
+                        "#007f20";
+
+                }
+
+                else {
+
+                    g.fillStyle =
+                        "#005c18";
+
+                }
+
+            }
+
+
+            g.fillText(
+                drop.chars[j],
+                drop.x,
+                y
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DIBUJAR PALABRA GIF
+========================================================= */
+
+function drawGIFWord(
+    scene,
+    formed
+) {
+
+    const g =
+        scene.ctx;
+
+
+    const text =
+        scene.text;
+
+
+    const fontSize =
+        scene.fontSize;
+
+
+    /*
+       MISMO TAMAÑO.
+    */
+
+    g.font =
+        "bold " +
+        fontSize +
+        "px monospace";
+
+
+    g.textAlign =
+        "center";
+
+
+    g.textBaseline =
+        "middle";
+
+
+    const centerX =
+        GIF_WIDTH / 2;
+
+
+    const centerY =
+        GIF_HEIGHT / 2;
+
+
+    const totalWidth =
+        g.measureText(
+            text
+        ).width;
+
+
+    let x =
+        centerX -
+        totalWidth / 2;
+
+
+    for (
+        let i = 0;
+        i < text.length;
+        i++
+    ) {
+
+        const letter =
+            text[i];
+
+
+        const width =
+            g.measureText(
+                letter
+            ).width;
+
+
+        if (
+            i < formed
+        ) {
+
+            g.fillStyle =
+                "#00ff41";
+
+
+            g.fillText(
+                letter,
+
+                x +
+                width / 2,
+
+                centerY
+            );
+
+        }
+
+
+        x +=
+            width;
+
+    }
+
+}
+
+
+/* =========================================================
+   RENDER FRAME GIF
+========================================================= */
+
+function renderGIFFrame(
+    scene,
+    frame
+) {
+
+    const g =
+        scene.ctx;
+
+
+    /*
+       Fondo negro.
+    */
+
+    g.fillStyle =
+        "#000000";
+
+
+    g.fillRect(
+        0,
+        0,
+        GIF_WIDTH,
+        GIF_HEIGHT
+    );
+
+
+    /*
+       Avance exacto:
+       1 / 10 segundo.
+    */
+
+    const deltaSeconds =
+        1 /
+        GIF_FPS;
+
+
+    /*
+       LLUVIA
+    */
+
+    updateGIFRain(
+        scene,
+        deltaSeconds
+    );
+
+
+    drawGIFRain(
+        scene
+    );
+
+
+    /*
+       FORMACIÓN (Basado en LETTER_INTERVAL)
+    */
+
+    const totalTimeSeconds = frame / GIF_FPS; // Tiempo transcurrido en el GIF
+
+    let formed = Math.floor((totalTimeSeconds * 1000) / LETTER_INTERVAL);
+
+    formed = Math.min(formed, scene.text.length);
+
+
+    drawGIFWord(
+        scene,
+        formed
+    );
+
+}
+
+
+/* =========================================================
+   PALETA GIF
+========================================================= */
+
+/*
+   16 colores.
+
+   Esto permite conservar
+   bastante más detalle que
+   la versión anterior de 8 colores.
+*/
+
+const GIF_PALETTE = [
+
+    [0, 0, 0],
+
+    [0, 25, 6],
+
+    [0, 45, 11],
+
+    [0, 65, 16],
+
+    [0, 85, 21],
+
+    [0, 105, 26],
+
+    [0, 125, 31],
+
+    [0, 145, 36],
+
+    [0, 165, 41],
+
+    [0, 185, 46],
+
+    [0, 205, 51],
+
+    [0, 220, 55],
+
+    [0, 235, 59],
+
+    [0, 245, 62],
+
+    [0, 255, 65],
+
+    [255, 255, 255]
+
+];
+
+
+/* =========================================================
+   CONVERTIR CANVAS A ÍNDICES
+========================================================= */
+
+function canvasToIndexed(
+    sceneCanvas
+) {
+
+    const image =
+        sceneCanvas
+            .getContext("2d")
+            .getImageData(
+                0,
+                0,
+                GIF_WIDTH,
+                GIF_HEIGHT
+            );
+
+
+    const pixels =
+        image.data;
+
+
+    const indexed =
+        new Uint8Array(
+            GIF_WIDTH *
+            GIF_HEIGHT
+        );
+
+
+    let p = 0;
+
+
+    for (
+        let i = 0;
+        i < indexed.length;
+        i++
+    ) {
+
+        const r =
+            pixels[p];
+
+
+        const g =
+            pixels[p + 1];
+
+
+        const b =
+            pixels[p + 2];
+
+
+        /*
+           Blanco.
+        */
+
+        if (
+            r > 210 &&
+            g > 210 &&
+            b > 210
+        ) {
+
+            indexed[i] =
+                15;
+
+        }
+
+        else {
+
+            /*
+               Para Matrix prácticamente
+               todo depende de G.
+
+               Convertimos la intensidad
+               verde a 0-14.
+            */
+
+            let level =
+                Math.round(
+                    (
+                        g /
+                        255
+                    ) *
+                    14
+                );
+
+
+            /*
+               Si casi no hay verde,
+               negro.
+            */
+
+            if (
+                g < 8
+            ) {
+
+                level =
+                    0;
+
+            }
+
+
+            level =
+                Math.max(
+                    0,
+                    Math.min(
+                        14,
+                        level
+                    )
+                );
+
+
+            indexed[i] =
+                level;
+
+        }
+
+
+        p += 4;
+
+    }
+
+
+    return indexed;
+
+}
+
+
+/* =========================================================
+   LZW GIF REAL
+========================================================= */
+
+function lzwEncode(
+    indexed,
+    minCodeSize = 4
+) {
+
+    const clearCode =
+        1 <<
+        minCodeSize;
+
+
+    const endCode =
+        clearCode +
+        1;
+
+
+    const firstCode =
+        endCode +
+        1;
+
+
+    /*
+       Código inicial:
+       minCodeSize + 1 bits.
+    */
+
+    let codeSize =
+        minCodeSize +
+        1;
+
+
+    let nextCode =
+        firstCode;
+
+
+    const dictionary =
+        new Map();
+
+
+    const output =
+        [];
+
+
+    let currentByte =
+        0;
+
+
+    let bitsInByte =
+        0;
+
+
+    function writeCode(
+        code
+    ) {
+
+        currentByte |=
+            code <<
+            bitsInByte;
+
+
+        bitsInByte +=
+            codeSize;
+
+
+        while (
+            bitsInByte >= 8
+        ) {
+
+            output.push(
+                currentByte &
+                255
+            );
+
+
+            currentByte >>=
+                8;
+
+
+            bitsInByte -=
+                8;
+
+        }
+
+    }
+
+
+    function resetDictionary() {
+
+        dictionary.clear();
+
+        codeSize =
+            minCodeSize +
+            1;
+
+        nextCode =
+            firstCode;
+
+    }
+
+
+    /*
+       CLEAR inicial.
+    */
+
+    writeCode(
+        clearCode
+    );
+
+
+    resetDictionary();
+
+
+    if (
+        indexed.length === 0
+    ) {
+
+        writeCode(
+            endCode
+        );
+
+        return output;
+
+    }
+
+
+    /*
+       Secuencia inicial.
+    */
+
+    let prefix =
+        indexed[0];
+
+
+    for (
+        let i = 1;
+        i < indexed.length;
+        i++
+    ) {
+
+        const value =
+            indexed[i];
+
+
+        /*
+           Representación de clave.
+        */
+
+        const key =
+            prefix +
+            "," +
+            value;
+
+
+        if (
+            dictionary.has(key)
+        ) {
+
+            prefix =
+                dictionary.get(key);
+
+        }
+
+        else {
+
+            /*
+               Emitir prefijo.
+            */
+
+            writeCode(
+                prefix
+            );
+
+
+            /*
+               Agregar nueva entrada
+               si todavía hay espacio.
+            */
+
+            if (
+                nextCode <
+                4096
+            ) {
+
+                dictionary.set(
+                    key,
+                    nextCode
+                );
+
+
+                nextCode++;
+
+
+                /*
+                   Aumentar tamaño
+                   del código.
+                */
+
+                if (
+                    nextCode ===
+                    (1 << codeSize) &&
+                    codeSize < 12
+                ) {
+
+                    codeSize++;
+
+                }
+
+            }
+
+            else {
+
+                /*
+                   Diccionario lleno:
+                   enviar CLEAR.
+                */
+
+                writeCode(
+                    clearCode
+                );
+
+
+                resetDictionary();
+
+            }
+
+
+            prefix =
+                value;
+
+        }
+
+    }
+
+
+    /*
+       Último código.
+    */
+
+    writeCode(
+        prefix
+    );
+
+
+    /*
+       END.
+    */
+
+    writeCode(
+        endCode
+    );
+
+
+    /*
+       Último byte.
+    */
+
+    if (
+        bitsInByte > 0
+    ) {
+
+        output.push(
+            currentByte &
+            255
+        );
+
+    }
+
+
+    return output;
+
+}
+
+
+/* =========================================================
+   ESCRIBIR 16 BITS
+========================================================= */
+
+function write16(
+    array,
+    value
+) {
+
+    array.push(
+        value & 255
+    );
+
+
+    array.push(
+        (value >> 8) & 255
+    );
+
+}
+
+
+/* =========================================================
+   AGREGAR DATA GIF
+========================================================= */
+
+function appendSubBlocks(
+    output,
+    data
+) {
+
+    let position = 0;
+
+
+    while (
+        position <
+        data.length
+    ) {
+
+        const size =
+            Math.min(
+                255,
+                data.length -
+                position
+            );
+
+
+        output.push(
+            size
+        );
+
+
+        for (
+            let i = 0;
+            i < size;
+            i++
+        ) {
+
+            output.push(
+                data[
+                    position + i
+                ]
+            );
+
+        }
+
+
+        position +=
+            size;
+
+    }
+
+
+    /*
+       Terminador.
+    */
+
+    output.push(
+        0
+    );
+
+}
+
+
+/* =========================================================
+   HEADER GIF
+========================================================= */
+
+function createGIFHeader() {
+
+    const output = [];
+
+
+    /*
+       GIF89a.
+    */
+
+    output.push(
+        71,
+        73,
+        70,
+        56,
+        57,
+        97
+    );
+
+
+    /*
+       Tamaño.
+    */
+
+    write16(
+        output,
+        GIF_WIDTH
+    );
+
+
+    write16(
+        output,
+        GIF_HEIGHT
+    );
+
+
+    /*
+       GCT:
+
+       1 = existe
+       111 = resolución
+       0 = no sort
+       1111 = 16 colores
+    */
+
+    output.push(
+        0xF7
+    );
+
+
+    /*
+       Background.
+    */
+
+    output.push(
+        0
+    );
+
+
+    /*
+       Aspect ratio.
+    */
+
+    output.push(
+        0
+    );
+
+
+    /*
+       Global palette.
+    */
+
+    for (
+        let i = 0;
+        i < 16;
+        i++
+    ) {
+
+        const color =
+            GIF_PALETTE[i];
+
+
+        output.push(
+            color[0],
+            color[1],
+            color[2]
+        );
+
+    }
+
+
+    /*
+       NETSCAPE LOOP.
+    */
+
+    output.push(
+        0x21,
+        0xFF,
+        11
+    );
+
+
+    const app =
+        "NETSCAPE2.0";
+
+
+    for (
+        let i = 0;
+        i < app.length;
+        i++
+    ) {
+
+        output.push(
+            app.charCodeAt(i)
+        );
+
+    }
+
+
+    output.push(
+        3,
+        1,
+        0,
+        0,
+        0
+    );
+
+
+    return output;
+
+}
+
+
+/* =========================================================
+   AGREGAR FRAME AL GIF
+========================================================= */
+
+function appendGIFFrame(
+    output,
+    canvasFrame
+) {
+
+    /*
+       Graphic Control Extension.
+    */
+
+    output.push(
+        0x21,
+        0xF9,
+        4,
+        0
+    );
+
+
+    /*
+       10 centésimas =
+       0.10 segundos.
+    */
+
+    write16(
+        output,
+        10
+    );
+
+
+    /*
+       Transparent color index.
+    */
+
+    output.push(
+        0
+    );
+
+
+    /*
+       Terminador.
+    */
+
+    output.push(
+        0
+    );
+
+
+    /*
+       Image Descriptor.
+    */
+
+    output.push(
+        0x2C
+    );
+
+
+    /*
+       X.
+    */
+
+    write16(
+        output,
+        0
+    );
+
+
+    /*
+       Y.
+    */
+
+    write16(
+        output,
+        0
+    );
+
+
+    /*
+       Width.
+    */
+
+    write16(
+        output,
+        GIF_WIDTH
+    );
+
+
+    /*
+       Height.
+    */
+
+    write16(
+        output,
+        GIF_HEIGHT
+    );
+
+
+    /*
+       Sin Local Color Table.
+    */
+
+    output.push(
+        0
+    );
+
+
+    /*
+       LZW minimum code size.
+
+       16 colores = 4 bits.
+    */
+
+    output.push(
+        4
+    );
+
+
+    /*
+       Convertir imagen.
+    */
+
+    const indexed =
+        canvasToIndexed(
+            canvasFrame
+        );
+
+
+    /*
+       Codificar LZW.
+    */
+
+    const compressed =
+        lzwEncode(
+            indexed,
+            4
+        );
+
+
+    /*
+       Sub-bloques.
+    */
+
+    appendSubBlocks(
+        output,
+        compressed
+    );
+
+}
+
+
+/* =========================================================
+   GENERAR GIF HD
+========================================================= */
+
+gifBtn.addEventListener(
+    "click",
+    async () => {
+
+        const text =
+            textInput.value
+                .trim()
+                .toUpperCase();
+
+
+        if (!text) {
+
+            alert(
+                "Escribe un nombre primero."
+            );
+
+            return;
+
+        }
+
+
+        /*
+           Bloquear controles.
+        */
+
+        gifBtn.disabled =
+            true;
+
+        restartBtn.disabled =
+            true;
+
+
+        downloadBtn.style.display =
+            "none";
+
+
+        status.textContent =
+            "Preparando GIF HD...";
+
+
+        /*
+           Crear escena.
+
+           IMPORTANTE:
+           La lluvia se crea UNA SOLA VEZ.
+        */
+
+        const scene =
+            createGIFScene(
+                text
+            );
+
+
+        /*
+           Salida del GIF.
+
+           No almacenamos los 70 canvas.
+
+           Esto ahorra muchísima memoria.
+        */
+
+        const gifOutput =
+            createGIFHeader();
+
+
+        /*
+           Canvas reutilizable.
+        */
+
+        const frameCanvas =
+            scene.canvas;
+
+
+        /*
+           70 frames.
+        */
+
+        for (
+            let frame = 0;
+            frame < GIF_FRAMES;
+            frame++
+        ) {
+
+            /*
+               Dibujar frame.
+            */
+
+            renderGIFFrame(
+                scene,
+                frame
+            );
+
+
+            /*
+               Codificar inmediatamente.
+            */
+
+            appendGIFFrame(
+                gifOutput,
+                frameCanvas
+            );
+
+
+            /*
+               Progreso.
+            */
+
+            const percent =
+                Math.round(
+                    (
+                        (frame + 1) /
+                        GIF_FRAMES
+                    ) *
+                    100
+                );
+
+
+            status.textContent =
+                "Generando GIF HD... " +
+                percent +
+                "%";
+
+
+            /*
+               Dar tiempo al navegador.
+            */
+
+            await new Promise(
+                resolve =>
+                    setTimeout(
+                        resolve,
+                        0
+                    )
+            );
+
+        }
+
+
+        /*
+           Trailer GIF.
+        */
+
+        gifOutput.push(
+            0x3B
+        );
+
+
+        status.textContent =
+            "Finalizando GIF HD...";
+
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    50
+                )
+        );
+
+
+        /*
+           Crear Blob.
+
+           Uint8Array evita tener que
+           almacenar 70 imágenes.
+        */
+
+        const gifArray =
+            new Uint8Array(
+                gifOutput
+            );
+
+
+        const blob =
+            new Blob(
+                [gifArray],
+                {
+                    type:
+                        "image/gif"
+                }
+            );
+
+
+        /*
+           Liberar URL anterior.
+        */
+
+        if (
+            downloadBtn.dataset.url
+        ) {
+
+            URL.revokeObjectURL(
+                downloadBtn.dataset.url
+            );
+
+        }
+
+
+        const url =
+            URL.createObjectURL(
+                blob
+            );
+
+
+        downloadBtn.dataset.url =
+            url;
+
+
+        downloadBtn.href =
+            url;
+
+
+        downloadBtn.download =
+            text.toLowerCase() +
+            "-matrix-hd.gif";
+
+
+        downloadBtn.style.display =
+            "inline-block";
+
+
+        /*
+           Información.
+        */
+
+        const sizeMB =
+            (
+                blob.size /
+                (
+                    1024 *
+                    1024
+                )
+            ).toFixed(2);
+
+
+        status.textContent =
+            "GIF HD listo — " +
+            sizeMB +
+            " MB — 950×500 — 7 segundos";
+
+
+        gifBtn.disabled =
+            false;
+
+
+        restartBtn.disabled =
+            false;
+
+    }
+);
+
+
+/* =========================================================
+   INICIO
+========================================================= */
+
+restart();
+
+requestAnimationFrame(
+    animate
+);
+
+</script>
+
+</body>
+</html>
